@@ -25,13 +25,13 @@ struct Variable {
 };
 
 struct Literal {
-    char *value;
+    double value;
 };
 
 struct Constant {
     char *name;
-    char *upper_limit;
-    char *lower_limit;
+    double upper_limit;
+    double lower_limit;
 };
 
 struct Operator {
@@ -45,13 +45,13 @@ static char* copy_string(char* str);
 static Term *term(void *content, char* meaning);
 static Term *variable(char *name);
 static Term *variable_with_index(char *name, int indec, Term **index);
-static Term *literal(char *value);
-static Term *constant(char *name, char *upper_limit, char *lower_limit);
+static Term *literal(double value);
+static Term *constant(char *name, double upper_limit, double lower_limit);
 static Term *operator(char *name, int argc, Term **argv);
 
 static Variable *construct_variable(char *name, int indec, Term **index);
-static Literal *construct_literal(char *value);
-static Constant *construct_constant(char *name, char *upper_limit, char *lower_limit);
+static Literal *construct_literal(double value);
+static Constant *construct_constant(char *name, double upper_limit, double lower_limit);
 static Operator *construct_operator(char *name, int argc, Term **argv);
 
 static void free_term(Term *t);
@@ -139,23 +139,23 @@ construct_variable(char *name, int indec, Term **index)
 }
 
 Literal *
-construct_literal(char *value)
+construct_literal(double value)
 {
     Literal* l = (Literal *) malloc(sizeof(Literal));
 
-    l->value = copy_string(value);
+    l->value = value;
 
     return l;
 }
 
 Constant *
-construct_constant(char *name, char *upper_limit, char *lower_limit)
+construct_constant(char *name, double upper_limit, double lower_limit)
 {
     Constant *c = (Constant *) malloc(sizeof(Constant));
 
     c->name = copy_string(name);
-    c->upper_limit = copy_string(upper_limit);
-    c->lower_limit = copy_string(lower_limit);
+    c->upper_limit = upper_limit;
+    c->lower_limit = lower_limit;
 
     return c;
 }
@@ -189,7 +189,7 @@ variable_with_index(char *name, int indec, Term **index)
 }
 
 Term *
-literal(char *value)
+literal(double value)
 {
     Literal *l = construct_literal(value);
 
@@ -197,7 +197,7 @@ literal(char *value)
 }
 
 Term *
-constant(char *name, char *upper_limit, char *lower_limit)
+constant(char *name, double upper_limit, double lower_limit)
 {
     Constant *c = construct_constant(name, upper_limit, lower_limit);
 
@@ -242,7 +242,6 @@ free_variable(Variable *v)
 void
 free_literal(Literal *l)
 {
-    free(l->value);
     free(l);
     return;
 }
@@ -250,8 +249,6 @@ free_literal(Literal *l)
 void
 free_constant(Constant *c)
 {
-    free(c->upper_limit);
-    free(c->lower_limit);
     free(c->name);
     free(c);
     return;
@@ -355,7 +352,7 @@ print_variable(Variable *v)
 void
 print_literal(Literal *l)
 {
-    printf("%s", l->value);
+    printf("%.6g", l->value);
     return;
 }
 
@@ -1021,6 +1018,14 @@ simplify_with_distributive_law(Term *t)
     return simplify(simple);
 }
 
+Term *
+add_literals(Literal *lhs, Literal *rhs)
+{
+
+
+    return NULL;
+}
+
 int main()
 {
 // functions:
@@ -1046,9 +1051,9 @@ int main()
 // / .......... divide ................ {term, term}
 // = .......... equal ................. {term, term}
 
-    Term *e = constant("e", "2.71", "2.72");
+    Term *e = constant("e", atof("2.71"), atof("2.72"));
     Term *x = variable("x");
-    Term *zero = literal("0.0");
+    Term *zero = literal(atof("0.01"));
     Term *N = variable("N");
 
     Term *a = add(imaginary(imaginary(e)), additive_inverse(x));
