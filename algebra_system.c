@@ -47,7 +47,7 @@ static Term *variable(char *name);
 static Term *variable_with_index(char *name, int indec, Term **index);
 static Term *literal(double value);
 static Term *constant(char *name, double upper_limit, double lower_limit);
-static Term *operator(char *name, int argc, Term **argv);
+struct Term *operator(char *name, int argc, struct Term **argv);
 
 static Variable *construct_variable(char *name, int indec, Term **index);
 static Literal *construct_literal(double value);
@@ -104,6 +104,24 @@ static Term *swap_negative_imaginary(Term *t);
 static Term *simplify_additive_inverse_add(Term *t);
 static Term *simplify_imaginary_add(Term *t);
 static Term *simplify_with_distributive_law(Term *t);
+
+static Term *add_literals(Term *t);
+static Term *add_imaginary_literals(Term *t);
+static Term *multiply_literals(Term *t);
+
+static Term *order_multiplied_terms(Term *t);
+
+static bool is_less(Term *lhs, Term *rhs);
+static bool is_greater(Term *lhs, Term *rhs);
+static bool is_equal(Term *lhs, Term *rhs);
+
+static void merge_sort_terms(Term *arr[], int l, int r);
+static void merge_terms(Term *arr[], int l, int m, int r);
+
+static bool is_variable_term(Term* t);
+static Term *get_variable_terms_from_multiple(Term* t);
+static Term *get_non_variable_terms_from_multiple(Term* t);
+static Term *combine_additive_variable_terms(Term* t);
 
 char*
 copy_string(char* str)
@@ -321,6 +339,9 @@ copy_operator(Operator *o)
 void
 print_term(Term *t)
 {
+    if (t == NULL)
+    return;
+
     if (strcmp(t->meaning, "constant") == 0)
         print_constant(t->content);
     if (strcmp(t->meaning, "literal") == 0)
@@ -366,7 +387,7 @@ print_constant(Constant *c)
 void
 print_operator(Operator *o)
 {
-    if (strcmp(o->name, "i") == 0)
+    if (strcmp(o->name, "imaginary") == 0)
         print_imaginary(o);
     if (strcmp(o->name, "additive_inverse") == 0)
         print_additive_inverse(o);
@@ -482,7 +503,7 @@ imaginary(Term *t)
 
     argv[0] = copy_term(t);
 
-    return operator("i", 1, argv);
+    return operator("imaginary", 1, argv);
 }
 
 Term *
@@ -652,10 +673,12 @@ simplify(Term *t)
         o->argv[i] = simplify(o->argv[i]);
 
     Term *simple = t;
+
     simple = simplify_subtraction(simple);
     simple = simplify_division(simple);
 
     simple = simplify_double_additive_inverse(simple);
+
     simple = simplify_double_multiple_inverse(simple);
     simple = simplify_double_imaginary(simple);
 
@@ -666,18 +689,29 @@ simplify(Term *t)
     simple = simplify_multiple_imaginary(simple);
 
     simple = swap_negative_imaginary(simple);
-
     simple = simplify_additive_inverse_add(simple);
     simple = simplify_imaginary_add(simple);
 
+
     simple = simplify_with_distributive_law(simple);
 
+    simple = add_literals(simple);
+    simple = add_imaginary_literals(simple);
+    simple = multiply_literals(simple);
+
+    simple = order_multiplied_terms(simple);
+//    simple = order_added_terms(simple);
+
+    simple = combine_additive_variable_terms(simple);
     return simple;
 }
 
 Term *
 simplify_subtraction(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = t->content;
     if (strcmp(o->name, "-") != 0)
         return t;
@@ -691,6 +725,9 @@ simplify_subtraction(Term *t)
 Term *
 simplify_division(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = t->content;
     if (strcmp(o->name, "/") != 0)
         return t;
@@ -704,6 +741,9 @@ simplify_division(Term *t)
 Term *
 simplify_double_additive_inverse(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "additive_inverse") != 0)
         return t;
@@ -725,6 +765,9 @@ simplify_double_additive_inverse(Term *t)
 Term *
 simplify_double_multiple_inverse(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "multiple_inverse") != 0)
         return t;
@@ -746,8 +789,11 @@ simplify_double_multiple_inverse(Term *t)
 Term *
 simplify_double_imaginary(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
-    if (strcmp(o->name, "i") != 0)
+    if (strcmp(o->name, "imaginary") != 0)
         return t;
 
     Term *t_1 = o->argv[0];
@@ -755,7 +801,7 @@ simplify_double_imaginary(Term *t)
         return t;
 
     Operator *o_1 = (Operator *) t_1->content;
-    if (strcmp(o_1->name, "i") != 0)
+    if (strcmp(o_1->name, "imaginary") != 0)
         return t;
 
     Term *simple = additive_inverse(o_1->argv[0]);
@@ -767,6 +813,9 @@ simplify_double_imaginary(Term *t)
 Term *
 simplify_multiple_negative(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "*") != 0)
         return t;
@@ -801,6 +850,9 @@ simplify_multiple_negative(Term *t)
 Term *
 simplify_multiple_imaginary(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "*") != 0)
         return t;
@@ -813,7 +865,7 @@ simplify_multiple_imaginary(Term *t)
             continue;
 
         Operator *temp = (Operator *) o->argv[i]->content;
-        if (strcmp(temp->name, "i") != 0)
+        if (strcmp(temp->name, "imaginary") != 0)
             continue;
 
         replacement = copy_term(temp->argv[0]);
@@ -835,6 +887,9 @@ simplify_multiple_imaginary(Term *t)
 Term *
 swap_negative_imaginary(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "additive_inverse") != 0)
         return t;
@@ -844,7 +899,7 @@ swap_negative_imaginary(Term *t)
         return t;
 
     Operator *o_1 = (Operator *) t_1->content;
-    if (strcmp(o_1->name, "i") != 0)
+    if (strcmp(o_1->name, "imaginary") != 0)
         return t;
 
     Term *temp = additive_inverse(o_1->argv[0]);
@@ -859,6 +914,9 @@ swap_negative_imaginary(Term *t)
 Term *
 simplify_additive_assoziativity(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "+") != 0)
         return t;
@@ -892,6 +950,9 @@ simplify_additive_assoziativity(Term *t)
 Term *
 simplify_multiple_assoziativity(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "*") != 0)
         return t;
@@ -925,6 +986,9 @@ simplify_multiple_assoziativity(Term *t)
 Term *
 simplify_additive_inverse_add(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "additive_inverse") != 0)
         return t;
@@ -938,8 +1002,8 @@ simplify_additive_inverse_add(Term *t)
 
     Term *simple = add(additive_inverse(o_1->argv[0]), additive_inverse(o_1->argv[1]));
 
-    for (int i = 2;i < o->argc;i++)
-        simple = add(simple, additive_inverse(o->argv[i]));
+    for (int i = 2;i < o_1->argc;i++)
+        simple = add(simple, additive_inverse(o_1->argv[i]));
 
     free_term(t);
 
@@ -949,8 +1013,11 @@ simplify_additive_inverse_add(Term *t)
 Term *
 simplify_imaginary_add(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
-    if (strcmp(o->name, "i") != 0)
+    if (strcmp(o->name, "imaginary") != 0)
         return t;
 
     if (strcmp(o->argv[0]->meaning, "operator") != 0)
@@ -960,10 +1027,10 @@ simplify_imaginary_add(Term *t)
     if (strcmp(o_1->name, "+") != 0)
         return t;
 
-    Term *temp, *simple = add(imaginary(o_1->argv[0]), imaginary(o_1->argv[1]));
+    Term *simple = add(imaginary(o_1->argv[0]), imaginary(o_1->argv[1]));
 
-    for (int i = 2;i < o->argc;i++)
-        simple = add(simple, imaginary(o->argv[i]));
+    for (int i = 2;i < o_1->argc;i++)
+        simple = add(simple, imaginary(o_1->argv[i]));
 
     free_term(t);
 
@@ -973,38 +1040,41 @@ simplify_imaginary_add(Term *t)
 Term *
 simplify_with_distributive_law(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
     Operator *o = (Operator *) t->content;
     if (strcmp(o->name, "*") != 0)
         return t;
 
-    int i;
-
     Operator *temp_o;
 
+    int i;
+
     for (i = 0;i < o->argc;i++) {
-        if (strcmp(o->argv[i]->meaning, "operator") != 0)
+        Term *temp_t = o->argv[i];
+        if (strcmp(temp_t->meaning, "operator") != 0)
             continue;
 
-        temp_o = o->argv[i]->content;
+        temp_o = (Operator *) temp_t->content;
         if (strcmp(temp_o->name, "+") != 0)
             continue;
-
         break;
     }
 
     if (i >= o->argc)
         return t;
 
-    Term **part = (Term **) malloc(sizeof(Term *) * (temp_o->argc));
+    Term *part[temp_o->argc];
 
     for (int j = 0;j < temp_o->argc;j++)
         part[j] = copy_term(temp_o->argv[j]);
 
-    for (int k = 0;k < temp_o->argc;k++) {
-        for (int j = 0;j < o->argc;j++) {
-            if (j == i)
+    for (int j = 0;j < temp_o->argc;j++) {
+        for (int k = 0;k < o->argc;k++) {
+            if (i == k)
                 continue;
-            part[k] = multiply(part[k], copy_term(o->argv[j]));
+            part[j] = multiply(part[j], copy_term(o->argv[k]));
         }
     }
 
@@ -1012,35 +1082,822 @@ simplify_with_distributive_law(Term *t)
     for (int j = 2;j < temp_o->argc;j++)
         simple = add(simple, part[j]);
 
-    free(part);
+    free(t);
+
+    return simplify(simple);
+}
+
+Term *
+add_literals(Term *t)
+{
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
+    Operator *o = (Operator *) t->content;
+    if (strcmp(o->name, "+") != 0)
+        return t;
+
+    int i_lhs, i_rhs;
+    double lhs, rhs;
+
+    for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
+        Term *t_1 = (Term *) o->argv[i_lhs];
+
+        if (strcmp(t_1->meaning, "literal") == 0) {
+            Literal *l_1 = (Literal *) t_1->content;
+            lhs = l_1->value;
+            break;
+        }
+        if (strcmp(t_1->meaning, "constant") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "variable") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "operator") == 0) {
+            Operator *o_2 = (Operator *) t_1->content;
+            if (strcmp(o_2->name, "additive_inverse") != 0)
+                continue;
+
+            Term *t_2 = (Term *) o_2->argv[0];
+            if (strcmp(t_2->meaning, "literal") != 0)
+                continue;
+
+            Literal *l_1 = (Literal *) t_2->content;
+            lhs = -l_1->value;
+            break;
+        }
+    }
+    if(i_lhs >= o->argc)
+        return t;
+
+    for (i_rhs = 0;i_rhs < o->argc;i_rhs++) {
+        if (i_lhs == i_rhs)
+            continue;
+
+        Term *t_1 = (Term *) o->argv[i_rhs];
+
+        if (strcmp(t_1->meaning, "literal") == 0) {
+            Literal *l_1 = (Literal *) t_1->content;
+            rhs = l_1->value;
+            break;
+        }
+        if (strcmp(t_1->meaning, "constant") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "variable") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "operator") == 0) {
+            Operator *o_2 = (Operator *) t_1->content;
+            if (strcmp(o_2->name, "additive_inverse") != 0)
+                continue;
+
+            Term *t_2 = (Term *) o_2->argv[0];
+            if (strcmp(t_2->meaning, "literal") != 0)
+                continue;
+
+            Literal *l_1 = (Literal *) t_2->content;
+            rhs = -l_1->value;
+            break;
+        }
+    }
+    if(i_rhs >= o->argc)
+        return t;
+
+    Term *simple = literal(lhs + rhs);
+
+    for(int i = 0;i < o->argc;i++) {
+        if (i == i_lhs || i == i_rhs)
+            continue;
+
+        simple = add(simple, copy_term(o->argv[i]));
+    }
+
     free_term(t);
 
     return simplify(simple);
 }
 
 Term *
-add_literals(Literal *lhs, Literal *rhs)
+add_imaginary_literals(Term *t)
 {
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
 
+    Operator *o = (Operator *) t->content;
+    if (strcmp(o->name, "+") != 0)
+        return t;
 
-    return NULL;
+    int i_lhs, i_rhs;
+    double lhs, rhs;
+
+    for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
+        Term *current = o->argv[i_lhs];
+        if (strcmp(current->meaning, "operator") != 0)
+            continue;
+
+        Operator *o_1 = (Operator *) current->content;
+        if (strcmp(o_1->name, "imaginary") != 0)
+            continue;
+
+        Term *t_1 = (Term *) o_1->argv[0];
+
+        if (strcmp(t_1->meaning, "literal") == 0) {
+            Literal *l_1 = (Literal *) t_1->content;
+            lhs = l_1->value;
+            break;
+        }
+        if (strcmp(t_1->meaning, "constant") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "variable") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "operator") == 0) {
+            Operator *o_2 = (Operator *) t_1->content;
+            if (strcmp(o_2->name, "additive_inverse") != 0)
+                continue;
+
+            Term *t_2 = (Term *) o_2->argv[0];
+            if (strcmp(t_2->meaning, "literal") != 0)
+                continue;
+
+            Literal *l_1 = (Literal *) t_2->content;
+            lhs = -l_1->value;
+            break;
+        }
+    }
+    if(i_lhs >= o->argc)
+        return t;
+
+    for (i_rhs = 0;i_rhs < o->argc;i_rhs++) {
+        if (i_lhs == i_rhs)
+            continue;
+
+        Term *current = o->argv[i_rhs];
+        if (strcmp(current->meaning, "operator") != 0)
+            continue;
+
+        Operator *o_1 = (Operator *) current->content;
+        if (strcmp(o_1->name, "imaginary") != 0)
+            continue;
+
+        Term *t_1 = (Term *) o_1->argv[0];
+
+        if (strcmp(t_1->meaning, "literal") == 0) {
+            Literal *l_1 = (Literal *) t_1->content;
+            rhs = l_1->value;
+            break;
+        }
+        if (strcmp(t_1->meaning, "constant") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "variable") == 0)
+            continue;
+        if (strcmp(t_1->meaning, "operator") == 0) {
+            Operator *o_2 = (Operator *) t_1->content;
+            if (strcmp(o_2->name, "additive_inverse") != 0)
+                continue;
+
+            Term *t_2 = (Term *) o_2->argv[0];
+            if (strcmp(t_2->meaning, "literal") != 0)
+                continue;
+
+            Literal *l_1 = (Literal *) t_2->content;
+            rhs = -l_1->value;
+            break;
+        }
+    }
+    if(i_rhs >= o->argc)
+        return t;
+
+    Term *simple = imaginary(literal(lhs + rhs));
+
+    for(int i = 0;i < o->argc;i++) {
+        if (i == i_lhs || i == i_rhs)
+            continue;
+
+        simple = add(simple, copy_term(o->argv[i]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
 }
+
+Term *
+multiply_literals(Term *t)
+{
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
+    Operator *o = (Operator *) t->content;
+    if (strcmp(o->name, "*") != 0)
+        return t;
+
+    int i_lhs, i_rhs;
+    Literal *lhs, *rhs;
+
+    for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
+
+        if (strcmp(o->argv[i_lhs]->meaning, "literal") != 0)
+            continue;
+
+        lhs = (Literal *) o->argv[i_lhs]->content;
+        break;
+    }
+
+    if(i_lhs >= o->argc)
+        return t;
+
+    for (i_rhs = 0;i_rhs < o->argc;i_rhs++) {
+        if (i_lhs == i_rhs)
+            continue;
+
+        if (strcmp(o->argv[i_rhs]->meaning, "literal") != 0)
+            continue;
+
+        rhs = (Literal *) o->argv[i_rhs]->content;
+        break;
+    }
+
+    if(i_rhs >= o->argc)
+        return t;
+
+    Term *simple = literal(lhs->value * rhs->value);
+
+    for(int i = 0;i < o->argc;i++) {
+        if (i == i_lhs || i == i_rhs)
+            continue;
+
+        simple = multiply(simple, copy_term(o->argv[i]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+static Term *order_multiplied_terms(Term *t)
+{
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
+    Operator *o = (Operator *) t->content;
+    if (strcmp(o->name, "*") != 0)
+        return t;
+
+    merge_sort_terms(o->argv, 0, o->argc - 1);
+
+    return t;
+}
+
+bool
+is_less(Term *lhs, Term *rhs)
+{
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0) {
+        Literal *lhs_l = (Literal*) lhs->content;
+        Literal *rhs_l = (Literal*) rhs->content;
+
+        if (lhs_l->value < rhs_l->value)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0) {
+        Constant *lhs_l = (Constant*) lhs->content;
+        Constant *rhs_l = (Constant*) rhs->content;
+
+        if (strcmp(lhs_l->name, rhs_l->name) < 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0) {
+        Variable *lhs_v = (Variable*) lhs->content;
+        Variable *rhs_v = (Variable*) rhs->content;
+
+        if (strcmp(lhs_v->name, rhs_v->name) < 0)
+            return true;
+        else if (strcmp(lhs_v->name, rhs_v->name) > 0)
+            return false;
+        else {
+            if (lhs_v->indec < rhs_v->indec)
+                return true;
+            else if (lhs_v->indec > rhs_v->indec)
+                return false;
+            else {
+                for (int i = 0;i < lhs_v->indec;i++) {
+                    if (is_less(lhs_v->index[i], rhs_v->index[i]))
+                        return true;
+                    else if (is_greater(lhs_v->index[i], rhs_v->index[i]))
+                        return false;
+                    else
+                        continue;
+                }
+                return false;
+            }
+        }
+    }
+
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0) {
+        Operator *lhs_l = (Operator*) lhs->content;
+        Operator *rhs_l = (Operator*) rhs->content;
+
+        // TODO: do something here because of additive variable terms ordering
+
+        if (strcmp(lhs_l->name, rhs_l->name) < 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return true;
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+
+    return false;
+}
+
+bool
+is_greater(Term *lhs, Term *rhs)
+{
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0) {
+        Literal *lhs_l = (Literal*) lhs->content;
+        Literal *rhs_l = (Literal*) rhs->content;
+
+        if (lhs_l->value > rhs_l->value)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0) {
+        Constant *lhs_l = (Constant*) lhs->content;
+        Constant *rhs_l = (Constant*) rhs->content;
+
+        if (strcmp(lhs_l->name, rhs_l->name) > 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0) {
+        Variable *lhs_v = (Variable*) lhs->content;
+        Variable *rhs_v = (Variable*) rhs->content;
+
+        if (strcmp(lhs_v->name, rhs_v->name) > 0)
+            return true;
+        else if (strcmp(lhs_v->name, rhs_v->name) < 0)
+            return false;
+        else {
+            if (lhs_v->indec > rhs_v->indec)
+                return true;
+            else if (lhs_v->indec < rhs_v->indec)
+                return false;
+            else {
+                for (int i = 0;i < lhs_v->indec;i++) {
+                    if (is_greater(lhs_v->index[i], rhs_v->index[i]))
+                        return true;
+                    else if (is_less(lhs_v->index[i], rhs_v->index[i]))
+                        return false;
+                    else
+                        continue;
+                }
+                return false;
+            }
+        }
+    }
+
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0) {
+        Operator *lhs_l = (Operator*) lhs->content;
+        Operator *rhs_l = (Operator*) rhs->content;
+
+        if (strcmp(lhs_l->name, rhs_l->name) > 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return true;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return true;
+
+    return false;
+}
+
+bool
+is_equal(Term *lhs, Term *rhs)
+{
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0) {
+        Literal *lhs_l = (Literal*) lhs->content;
+        Literal *rhs_l = (Literal*) rhs->content;
+
+        if (lhs_l->value == rhs_l->value)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0) {
+        Constant *lhs_l = (Constant*) lhs->content;
+        Constant *rhs_l = (Constant*) rhs->content;
+
+        if (strcmp(lhs_l->name, rhs_l->name) == 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0) {
+        Variable *lhs_v = (Variable*) lhs->content;
+        Variable *rhs_v = (Variable*) rhs->content;
+
+        if (strcmp(lhs_v->name, rhs_v->name) > 0)
+            return false;
+        else if (strcmp(lhs_v->name, rhs_v->name) < 0)
+            return false;
+        else {
+            if (lhs_v->indec > rhs_v->indec)
+                return false;
+            else if (lhs_v->indec < rhs_v->indec)
+                return false;
+            else {
+                for (int i = 0;i < lhs_v->indec;i++) {
+                    if (is_greater(lhs_v->index[i], rhs_v->index[i]))
+                        return false;
+                    else if (is_less(lhs_v->index[i], rhs_v->index[i]))
+                        return false;
+                    else
+                        continue;
+                }
+                return true;
+            }
+        }
+    }
+
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0) {
+        Operator *lhs_l = (Operator*) lhs->content;
+        Operator *rhs_l = (Operator*) rhs->content;
+
+        if (strcmp(lhs_l->name, rhs_l->name) == 0)
+            return true;
+        else
+            return false;
+    }
+
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "literal") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "operator") == 0)
+        return false;
+
+    if (strcmp(lhs->meaning, "constant") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "literal") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "variable") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "constant") == 0)
+        return false;
+    if (strcmp(lhs->meaning, "operator") == 0 &&
+        strcmp(rhs->meaning, "variable") == 0)
+        return false;
+
+    return false;
+}
+
+void
+merge_terms(Term *arr[], int l, int m, int r)
+{
+    int i, j, k;
+    int n1 = m - l + 1;
+    int n2 =  r - m;
+
+    Term *L[n1], *R[n2];
+
+    for (i = 0; i < n1; i++)
+        L[i] = arr[l + i];
+    for (j = 0; j < n2; j++)
+        R[j] = arr[m + 1 + j];
+
+    i = 0;
+    j = 0;
+    k = l;
+    while (i < n1 && j < n2) {
+        if (is_less(L[i], R[j]) || is_equal(L[i], R[j])) {
+            arr[k] = L[i];
+            i++;
+        } else {
+            arr[k] = R[j];
+            j++;
+        }
+        k++;
+    }
+
+    while (i < n1) {
+        arr[k] = L[i];
+        i++;
+        k++;
+    }
+
+    while (j < n2) {
+        arr[k] = R[j];
+        j++;
+        k++;
+    }
+}
+
+void
+merge_sort_terms(Term *arr[], int l, int r)
+{
+    if (l < r) {
+        int m = l + (r - l)/2;
+
+        merge_sort_terms(arr, l, m);
+        merge_sort_terms(arr, m + 1, r);
+
+        merge_terms(arr, l, m, r);
+    }
+}
+
+
+bool
+is_variable_term(Term* t)
+{
+    if(strcmp(t->meaning, "variable") == 0)
+        return true;
+    if(strcmp(t->meaning, "constant") == 0)
+        return false;
+    if(strcmp(t->meaning, "literal") == 0)
+        return false;
+    if(strcmp(t->meaning, "operator") == 0) {
+        Operator *o = (Operator *) t->content;
+
+        for (int i = 0;i < o->argc;i++)
+            if (is_variable_term(o->argv[i]))
+                return true;
+       	return false;
+    }
+   	return false;
+}
+
+Term *
+get_variable_terms_from_multiple(Term* t)
+{
+    if (strcmp(t->meaning, "variable") == 0)
+        return copy_term(t);
+    if (strcmp(t->meaning, "literal") == 0)
+        return literal(1.0);
+    if (strcmp(t->meaning, "constant") == 0)
+        return literal(1.0);
+    if (strcmp(t->meaning, "operator") == 0) {
+        Operator *o = (Operator *) t->content;
+
+        if (strcmp(o->name, "imaginary") == 0)
+            return get_variable_terms_from_multiple(o->argv[0]);
+        if (strcmp(o->name, "additive_inverse") == 0)
+            return get_variable_terms_from_multiple(o->argv[0]);
+        if (strcmp(o->name, "*") == 0) {
+            Term *acc = NULL;
+
+            int i;
+
+            for (i = 0;i < o->argc;i++) {
+                if (is_variable_term(o->argv[i])) {
+                    acc = copy_term(o->argv[i]);
+                    break;
+                }
+            }
+
+            for (i++;i < o->argc;i++)
+                if (is_variable_term(o->argv[i]))
+                        acc = multiply(acc, copy_term(o->argv[i]));
+
+            if (acc == NULL)
+                return literal(1.0);
+            else
+                return acc;
+        }
+    }
+
+    return literal(1.0); // don't know exactly what to do here
+}
+
+Term *
+get_non_variable_terms_from_multiple(Term* t)
+{
+    if (strcmp(t->meaning, "variable") == 0)
+        return literal(1.0);
+    if (strcmp(t->meaning, "literal") == 0)
+        return copy_term(t);
+    if (strcmp(t->meaning, "constant") == 0)
+        return copy_term(t);
+    if (strcmp(t->meaning, "operator") == 0) {
+        Operator *o = (Operator *) t->content;
+
+        if (strcmp(o->name, "imaginary") == 0) {
+            Term *t_1 = get_non_variable_terms_from_multiple(o->argv[0]);
+            Term *t_2 = imaginary(t_1);
+            free_term(t_1);
+            return t_2;
+        }
+        if (strcmp(o->name, "additive_inverse") == 0) {
+            Term *t_1 = get_non_variable_terms_from_multiple(o->argv[0]);
+            Term *t_2 = additive_inverse(t_1);
+            free_term(t_1);
+
+            return additive_inverse(get_non_variable_terms_from_multiple(o->argv[0]));
+        }
+        if (strcmp(o->name, "*") == 0) {
+            Term *acc = NULL;
+
+            for (int i = 0;i < o->argc;i++) {
+                if (!is_variable_term(o->argv[i])) {
+                    if (acc == NULL)
+                        acc = copy_term(o->argv[i]);
+                    else
+                        acc = multiply(acc, copy_term(o->argv[i]));
+                }
+            }
+
+            if (acc == NULL)
+                return literal(1.0);
+            else
+                return acc;
+        }
+    }
+
+    return literal(0.0); // don't know exactly what to do here
+}
+
+Term *
+combine_additive_variable_terms(Term* t)
+{
+    if (strcmp(t->meaning, "operator") != 0)
+        return t;
+
+    Operator *o = (Operator *) t->content;
+    if (strcmp(o->name, "+") != 0)
+        return t;
+
+    int i, j;
+
+    Term *non_variable, *variable;
+    Term *current_non_variable, *current_variable;
+
+    bool pair_found = false;
+
+    for (i = 0;i < o->argc;i++) {
+        non_variable = get_non_variable_terms_from_multiple(o->argv[i]);
+        variable = get_variable_terms_from_multiple(o->argv[i]);
+
+        for(j = i + 1;j < o->argc;j++) {
+            current_non_variable = get_non_variable_terms_from_multiple(o->argv[j]);
+            current_variable = get_variable_terms_from_multiple(o->argv[j]);
+
+            if (is_equal(variable, current_variable) && is_variable_term(variable)) {
+                pair_found = true;
+                break;
+            }
+        }
+        if (pair_found)
+            break;
+
+        free(non_variable);
+        free(variable);
+    }
+
+    if (!pair_found)
+        return t;
+    Term *temp = multiply(add(copy_term(non_variable), copy_term(current_non_variable)), variable);
+
+    Term *simple = temp;
+
+    for (int k = 0;k < o->argc;k++) {
+        if(k == i || k == j)
+            continue;
+        simple = add(simple, copy_term(o->argv[k]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
 
 int main()
 {
 // functions:
-// simplify(term)
+// c ... merge(term)
 
-// solve(term) // for differential equations
-// solve(term, variable)
-// minimize(term, variable, ...)
-// maximize(term, variable, ...)
-// series(term, variable, ...)
-// print(term)
-// pretty_print(term)
-// plot(term, variable)
-// plot(term, variable, variable)
-// plot(term, variable, variable, variable)
+// x ... simplify(term)
+// o ... solve(term) // for differential equations
+// o ... solve(term, variable)
+// o ... minimize(term, variable, ...)
+// o ... maximize(term, variable, ...)
+// o ... series(term, variable, ...)
+// x ... print(term)
+// o ... pretty_print(term)
+// o ... plot(term, variable)
+// o ... plot(term, variable, variable)
+// o ... plot(term, variable, variable, variable)
 
 // operators:
 // i .......... imaginary ............. {term}
@@ -1051,36 +1908,21 @@ int main()
 // / .......... divide ................ {term, term}
 // = .......... equal ................. {term, term}
 
-    Term *e = constant("e", atof("2.71"), atof("2.72"));
     Term *x = variable("x");
-    Term *zero = literal(atof("0.01"));
-    Term *N = variable("N");
+    Term *a = literal(2.0);
+    Term *b = literal(3.0);
 
-    Term *a = add(imaginary(imaginary(e)), additive_inverse(x));
+    Term *c = imaginary(add(x, a));
+    Term *d = add(x, b);
 
-    Term *b = additive_inverse(imaginary(subtract(zero, x)));
+    Term *e = multiply(c, d);
 
-    Term *c = multiply(a, b);
-
-    Term *y = variable("y");
-
-    Term *f = equal(y, c);
-
-    print_term(f);
+    print_term(e);
     printf("\n");
 
-    print_term(simplify(f));
+    print_term(simplify(e));
     printf("\n");
 
-    free_term(f);
-    free_term(e);
-    free_term(x);
-    free_term(zero);
-    free_term(N);
-    free_term(a);
-    free_term(b);
-    free_term(c);
-    free_term(y);
 
     return 0x00;
 }
