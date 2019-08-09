@@ -5,4 +5,4 @@ For now it is a term based CAS to simplify a given formula.
 
 ## TODO
 + `function` simplify
-+ `function` equals
++ `function` simplify_recursive_division
