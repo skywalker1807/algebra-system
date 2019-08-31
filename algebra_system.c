@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 
 typedef enum { false, true } bool;
@@ -544,54 +543,41 @@ multiple_inverse(Term *t)
 Term *
 add(Term *lhs, Term *rhs)
 {
-    bool lhs_add;
-    bool rhs_add;
-
     int lhs_argc;
     int rhs_argc;
 
-    Operator *o_1 = is_operator(lhs, "+");
-
-    if (o_1 == NULL) {
+    Operator *o_lhs = is_operator(lhs, "+");
+    if (o_lhs == NULL)
         lhs_argc = 1;
-        lhs_add = false;
-    } else {
-        lhs_argc = o_1->argc;
-        lhs_add = true;
-    }
+    else
+        lhs_argc = o_lhs->argc;
 
-    Operator *o_2 = is_operator(rhs, "+");
-
-    if (o_2 == NULL) {
+    Operator *o_rhs = is_operator(rhs, "+");
+    if (o_rhs == NULL)
         rhs_argc = 1;
-        rhs_add = false;
-    } else {
-        rhs_argc = ((Operator *) rhs->content)->argc;
-        rhs_add = true;
-    }
-
-    int argc = lhs_argc + rhs_argc;
+    else
+        rhs_argc = o_rhs->argc;
 
     int i = 0;
-    Term **argv = (Term **) malloc(sizeof(Term *) * argc);
+    Term **argv = (Term **) malloc(sizeof(Term *) * (lhs_argc + rhs_argc));
 
-    if(lhs_add)
-        for(int j = 0;j < lhs_argc;j++, i++)
-            argv[i] = ((Operator *) lhs->content)->argv[j];
-    else {
+    if(o_lhs == NULL) {
         argv[i] = lhs;
         i++;
+    } else {
+        for(int j = 0;j < o_lhs->argc;j++, i++)
+            argv[i] = o_lhs->argv[j];
     }
 
-    if(rhs_add)
-        for(int j = 0;j < rhs_argc;j++, i++)
-            argv[i] = ((Operator *) rhs->content)->argv[j];
-    else {
+    if(o_rhs == NULL) {
         argv[i] = rhs;
         i++;
+    } else {
+        for(int j = 0;j < o_rhs->argc;j++, i++)
+            argv[i] = o_rhs->argv[j];
     }
 
-    return operator("+", argc, argv);
+    return operator("+", (lhs_argc + rhs_argc), argv);
 }
 
 Term *
@@ -608,54 +594,41 @@ subtract(Term *lhs, Term *rhs)
 Term *
 multiply(Term *lhs, Term *rhs)
 {
-    bool lhs_multiply;
-    bool rhs_multiply;
-
     int lhs_argc;
     int rhs_argc;
 
-    Operator *o_1 = is_operator(lhs, "*");
-
-    if (o_1 == NULL) {
+    Operator *o_lhs = is_operator(lhs, "*");
+    if (o_lhs == NULL)
         lhs_argc = 1;
-        lhs_multiply = false;
-    } else {
-        lhs_argc = o_1->argc;
-        lhs_multiply = true;
-    }
+    else
+        lhs_argc = o_lhs->argc;
 
-    Operator *o_2 = is_operator(rhs, "*");
-
-    if (o_2 == NULL) {
+    Operator *o_rhs = is_operator(rhs, "*");
+    if (o_rhs == NULL)
         rhs_argc = 1;
-        rhs_multiply = false;
-    } else {
-        rhs_argc = ((Operator *) rhs->content)->argc;
-        rhs_multiply = true;
-    }
-
-    int argc = lhs_argc + rhs_argc;
+    else
+        rhs_argc = o_rhs->argc;
 
     int i = 0;
-    Term **argv = (Term **) malloc(sizeof(Term *) * argc);
+    Term **argv = (Term **) malloc(sizeof(Term *) * (lhs_argc + rhs_argc));
 
-    if(lhs_multiply)
-        for(int j = 0;j < lhs_argc;j++, i++)
-            argv[i] = ((Operator *) lhs->content)->argv[j];
-    else {
+    if(o_lhs == NULL) {
         argv[i] = lhs;
         i++;
+    } else {
+        for(int j = 0;j < o_lhs->argc;j++, i++)
+            argv[i] = o_lhs->argv[j];
     }
 
-    if(rhs_multiply)
-        for(int j = 0;j < rhs_argc;j++, i++)
-            argv[i] = ((Operator *) rhs->content)->argv[j];
-    else {
+    if(o_rhs == NULL) {
         argv[i] = rhs;
         i++;
+    } else {
+        for(int j = 0;j < o_rhs->argc;j++, i++)
+            argv[i] = o_rhs->argv[j];
     }
 
-    return operator("*", argc, argv);
+    return operator("*", (lhs_argc + rhs_argc), argv);
 }
 
 Term *
@@ -686,7 +659,7 @@ simplify(Term *t)
     if(strcmp(t->meaning, "operator") != 0)
         return t;
 
-    Operator *o = (Operator *) t->content;
+    Operator *o = t->content;
 
     for(int i = 0;i < o->argc;i++)
         o->argv[i] = simplify(o->argv[i]);
@@ -1061,6 +1034,7 @@ simplify_combine_multiplied_multiple_inverse(Term *t)
     for (i = 0;i < o->argc;i++) {
         if (i == j || i == k)
             continue;
+
         simple = multiply(simple, copy_term(o->argv[i]));
     }
 
@@ -1085,6 +1059,7 @@ simplify_combine_multiplied_neutral_terms(Term *t)
         o_1 = is_operator(o->argv[i], "multiple_inverse");
         if (o_1 == NULL)
             continue;
+
         t_1 = o_1->argv[0];
         break;
     }
@@ -1158,6 +1133,7 @@ simplify_with_distributive_law(Term *t)
         for (int k = 0;k < o->argc;k++) {
             if (i == k)
                 continue;
+
             part[j] = multiply(part[j], copy_term(o->argv[k]));
         }
     }
@@ -1226,6 +1202,7 @@ has_multiple_inverse(Term *t)
             Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
             if (o_1 == NULL)
                 continue;
+
             t_inv = o_1->argv[0];
             break;
         }
@@ -1285,6 +1262,7 @@ simplify_combine_additive_variable_terms(Term *t)
     for (int k = 0;k < o->argc;k++) {
         if(k == i || k == j)
             continue;
+
         simple = add(simple, copy_term(o->argv[k]));
     }
 
@@ -1304,7 +1282,6 @@ simplify_imaginary_zero(Term * t)
         return t;
 
     Literal *l = o->argv[0]->content;
-
     if (l->value != 0.0);
         return t;
 
@@ -1324,7 +1301,6 @@ simplify_additive_inverse_zero(Term *t)
         return t;
 
     Literal *l = o->argv[0]->content;
-
     if (l->value != 0.0);
         return t;
 
@@ -1350,13 +1326,12 @@ simplify_added_zero(Term *t)
         return t;
 
     Literal *l = o->argv[i]->content;
-
     if (l->value != 0.0)
         return t;
 
     Term *simple;
-
     int j;
+
     if (i == 0) {
         simple = copy_term(o->argv[1]);
         j = 1;
@@ -1368,6 +1343,7 @@ simplify_added_zero(Term *t)
     for (int k = 0;k < o->argc;k++) {
         if (i == k || j == k)
             continue;
+
         simple = add(simple, copy_term(o->argv[k]));
     }
 
@@ -1411,6 +1387,7 @@ simplify_multiplied_one(Term *t)
     for (int k = 0;k < o->argc;k++) {
         if (i == k || j == k)
             continue;
+
         simple = multiply(simple, copy_term(o->argv[k]));
     }
 
@@ -1475,10 +1452,10 @@ add_literals(Term *t)
     double lhs, rhs;
 
     for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
-        Term *t_1 = (Term *) o->argv[i_lhs];
+        Term *t_1 = o->argv[i_lhs];
 
         if (strcmp(t_1->meaning, "literal") == 0) {
-            Literal *l_1 = (Literal *) t_1->content;
+            Literal *l_1 = t_1->content;
             lhs = l_1->value;
             break;
         }
@@ -1487,15 +1464,15 @@ add_literals(Term *t)
         if (strcmp(t_1->meaning, "variable") == 0)
             continue;
         if (strcmp(t_1->meaning, "operator") == 0) {
-            Operator *o_2 = (Operator *) t_1->content;
+            Operator *o_2 = t_1->content;
             if (strcmp(o_2->name, "additive_inverse") != 0)
                 continue;
 
-            Term *t_2 = (Term *) o_2->argv[0];
+            Term *t_2 = o_2->argv[0];
             if (strcmp(t_2->meaning, "literal") != 0)
                 continue;
 
-            Literal *l_1 = (Literal *) t_2->content;
+            Literal *l_1 = t_2->content;
             lhs = -l_1->value;
             break;
         }
@@ -1507,10 +1484,10 @@ add_literals(Term *t)
         if (i_lhs == i_rhs)
             continue;
 
-        Term *t_1 = (Term *) o->argv[i_rhs];
+        Term *t_1 = o->argv[i_rhs];
 
         if (strcmp(t_1->meaning, "literal") == 0) {
-            Literal *l_1 = (Literal *) t_1->content;
+            Literal *l_1 = t_1->content;
             rhs = l_1->value;
             break;
         }
@@ -1519,15 +1496,15 @@ add_literals(Term *t)
         if (strcmp(t_1->meaning, "variable") == 0)
             continue;
         if (strcmp(t_1->meaning, "operator") == 0) {
-            Operator *o_2 = (Operator *) t_1->content;
+            Operator *o_2 = t_1->content;
             if (strcmp(o_2->name, "additive_inverse") != 0)
                 continue;
 
-            Term *t_2 = (Term *) o_2->argv[0];
+            Term *t_2 = o_2->argv[0];
             if (strcmp(t_2->meaning, "literal") != 0)
                 continue;
 
-            Literal *l_1 = (Literal *) t_2->content;
+            Literal *l_1 = t_2->content;
             rhs = -l_1->value;
             break;
         }
@@ -1560,14 +1537,14 @@ add_imaginary_literals(Term *t)
     double lhs, rhs;
 
     for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
-
         Operator *o_1 = is_operator(o->argv[i_lhs], "imaginary");
         if (o_1 == NULL)
             continue;
 
-        Term *t_1 = (Term *) o_1->argv[0];
+        Term *t_1 = o_1->argv[0];
+
         if (strcmp(t_1->meaning, "literal") == 0) {
-            Literal *l_1 = (Literal *) t_1->content;
+            Literal *l_1 = t_1->content;
             lhs = l_1->value;
             break;
         }
@@ -1576,19 +1553,20 @@ add_imaginary_literals(Term *t)
         if (strcmp(t_1->meaning, "variable") == 0)
             continue;
         if (strcmp(t_1->meaning, "operator") == 0) {
-            Operator *o_2 = (Operator *) t_1->content;
+            Operator *o_2 = t_1->content;
             if (strcmp(o_2->name, "additive_inverse") != 0)
                 continue;
 
-            Term *t_2 = (Term *) o_2->argv[0];
+            Term *t_2 = o_2->argv[0];
             if (strcmp(t_2->meaning, "literal") != 0)
                 continue;
 
-            Literal *l_1 = (Literal *) t_2->content;
+            Literal *l_1 = t_2->content;
             lhs = -l_1->value;
             break;
         }
     }
+
     if(i_lhs >= o->argc)
         return t;
 
@@ -1600,10 +1578,10 @@ add_imaginary_literals(Term *t)
         if (o_1 == NULL)
             continue;
 
-        Term *t_1 = (Term *) o_1->argv[0];
+        Term *t_1 = o_1->argv[0];
 
         if (strcmp(t_1->meaning, "literal") == 0) {
-            Literal *l_1 = (Literal *) t_1->content;
+            Literal *l_1 = t_1->content;
             rhs = l_1->value;
             break;
         }
@@ -1612,19 +1590,20 @@ add_imaginary_literals(Term *t)
         if (strcmp(t_1->meaning, "variable") == 0)
             continue;
         if (strcmp(t_1->meaning, "operator") == 0) {
-            Operator *o_2 = (Operator *) t_1->content;
+            Operator *o_2 = t_1->content;
             if (strcmp(o_2->name, "additive_inverse") != 0)
                 continue;
 
-            Term *t_2 = (Term *) o_2->argv[0];
+            Term *t_2 = o_2->argv[0];
             if (strcmp(t_2->meaning, "literal") != 0)
                 continue;
 
-            Literal *l_1 = (Literal *) t_2->content;
+            Literal *l_1 = t_2->content;
             rhs = -l_1->value;
             break;
         }
     }
+
     if(i_rhs >= o->argc)
         return t;
 
@@ -1653,11 +1632,10 @@ multiply_literals(Term *t)
     Literal *lhs, *rhs;
 
     for (i_lhs = 0;i_lhs < o->argc;i_lhs++) {
-
         if (strcmp(o->argv[i_lhs]->meaning, "literal") != 0)
             continue;
 
-        lhs = (Literal *) o->argv[i_lhs]->content;
+        lhs = o->argv[i_lhs]->content;
         break;
     }
 
@@ -1671,7 +1649,7 @@ multiply_literals(Term *t)
         if (strcmp(o->argv[i_rhs]->meaning, "literal") != 0)
             continue;
 
-        rhs = (Literal *) o->argv[i_rhs]->content;
+        rhs = o->argv[i_rhs]->content;
         break;
     }
 
