@@ -72,55 +72,57 @@ static void print_constant(Constant *c);
 static void print_operator(Operator *o);
 
 static void print_imaginary(Operator *o);
-static void print_additive_inverse(Operator *o);
-static void print_multiple_inverse(Operator *o);
 static void print_addition(Operator *o);
-static void print_subtract(Operator *o);
+static void print_additive_inverse(Operator *o);
 static void print_multiply(Operator *o);
-static void print_divide(Operator *o);
+static void print_multiple_inverse(Operator *o);
 static void print_equals(Operator *o);
 
 static Operator *is_operator(Term *t, char *name);
 
 static Term *imaginary(Term *t);
-static Term *additive_inverse(Term *t);
-static Term *multiple_inverse(Term *t);
 static Term *add(Term *lhs, Term *rhs);
-static Term *subtract(Term *lhs, Term *rhs);
+static Term *additive_inverse(Term *t);
 static Term *multiply(Term *lhs, Term *rhs);
-static Term *divide(Term *lhs, Term *rhs);
+static Term *multiple_inverse(Term *t);
 static Term *equal(Term *lhs, Term *rhs);
 
 static Term *simplify(Term *t);
+
+static Term *simplify_double_imaginary(Term *t);
 static Term *simplify_double_additive_inverse(Term *t);
 static Term *simplify_double_multiple_inverse(Term *t);
-static Term *simplify_double_imaginary(Term *t);
+
+static Term *swap_additive_inverse_imaginary(Term *t);
+
+static Term *simplify_additive_inverse_zero(Term *t);
+static Term *simplify_imaginary_zero(Term *t);
+
+static Term *add_literals(Term *t);
+static Term *add_imaginary_literals(Term *t);
+static Term *simplify_additive_inverse_add(Term *t);
+static Term *simplify_imaginary_add(Term *t);
+static Term *simplify_added_zero(Term *t);
+static Term *simplify_combine_added_neutral_terms(Term *t);
 static Term *simplify_additive_assoziativity(Term *t);
+static Term *simplify_order_added_terms(Term *t);
+
+static Term *multiply_literals(Term *t);
 static Term *simplify_multiple_assoziativity(Term *t);
 static Term *simplify_multiple_additive_inverse(Term *t);
 static Term *simplify_multiple_imaginary(Term *t);
 static Term *simplify_multiple_inverse_imaginary(Term *t);
 static Term *simplify_multiple_inverse_additive_inverse(Term *t);
-static Term *swap_additive_inverse_imaginary(Term *t);
-static Term *simplify_additive_inverse_add(Term *t);
-static Term *simplify_imaginary_add(Term *t);
-static Term *simplify_order_added_terms(Term *t);
-static Term *simplify_order_multiplied_terms(Term *t);
-static Term *simplify_combine_multiplied_multiple_inverse(Term *t);
-static Term *simplify_combine_multiplied_neutral_terms(Term *t);
-static Term *simplify_combine_added_neutral_terms(Term *t);
-static Term *simplify_with_distributive_law(Term *t);
-static Term *simplify_recursive_multiple_inverse(Term *t);
-static Term *simplify_combine_additive_variable_terms(Term *t);
-static Term *simplify_imaginary_zero(Term *t);
-static Term *simplify_additive_inverse_zero(Term *t);
-static Term *simplify_added_zero(Term *t);
 static Term *simplify_multiplied_one(Term *t);
 static Term *simplify_multiplied_zero(Term *t);
 static Term *simplify_multiple_inverse_one(Term *t);
-static Term *add_literals(Term *t);
-static Term *add_imaginary_literals(Term *t);
-static Term *multiply_literals(Term *t);
+static Term *simplify_combine_multiplied_multiple_inverse(Term *t);
+static Term *simplify_combine_multiplied_neutral_terms(Term *t);
+static Term *simplify_order_multiplied_terms(Term *t);
+
+static Term *simplify_with_distributive_law(Term *t);
+static Term *simplify_recursive_multiple_inverse(Term *t);
+static Term *simplify_combine_additive_variable_terms(Term *t);
 
 static Term *simplify_partial_fraction_expansion(Term *t);
 
@@ -400,18 +402,14 @@ print_operator(Operator *o)
 {
     if (strcmp(o->name, "imaginary") == 0)
         print_imaginary(o);
-    if (strcmp(o->name, "additive_inverse") == 0)
-        print_additive_inverse(o);
-    if (strcmp(o->name, "multiple_inverse") == 0)
-        print_multiple_inverse(o);
     if (strcmp(o->name, "+") == 0)
         print_addition(o);
-    if (strcmp(o->name, "-") == 0)
-        print_subtract(o);
+    if (strcmp(o->name, "additive_inverse") == 0)
+        print_additive_inverse(o);
     if (strcmp(o->name, "*") == 0)
         print_multiply(o);
-    if (strcmp(o->name, "/") == 0)
-        print_divide(o);
+    if (strcmp(o->name, "multiple_inverse") == 0)
+        print_multiple_inverse(o);
     if (strcmp(o->name, "=") == 0)
         print_equals(o);
     return;
@@ -422,24 +420,6 @@ print_imaginary(Operator *o)
 {
     printf("i*");
     print_term(o->argv[0]);
-    return;
-}
-
-void
-print_additive_inverse(Operator *o)
-{
-    printf("(-");
-    print_term(o->argv[0]);
-    printf(")");
-    return;
-}
-
-void
-print_multiple_inverse(Operator *o)
-{
-    printf("(1.0/");
-    print_term(o->argv[0]);
-    printf(")");
     return;
 }
 
@@ -461,12 +441,10 @@ print_addition(Operator *o)
 }
 
 void
-print_subtract(Operator *o)
+print_additive_inverse(Operator *o)
 {
-    printf("(");
+    printf("(-");
     print_term(o->argv[0]);
-    printf(" - ");
-    print_term(o->argv[1]);
     printf(")");
     return;
 }
@@ -475,6 +453,7 @@ void
 print_multiply(Operator *o)
 {
     printf("(");
+
     print_term(o->argv[0]);
     printf(" * ");
     print_term(o->argv[1]);
@@ -488,12 +467,10 @@ print_multiply(Operator *o)
 }
 
 void
-print_divide(Operator *o)
+print_multiple_inverse(Operator *o)
 {
-    printf("(");
+    printf("(1.0/");
     print_term(o->argv[0]);
-    printf(") / (");
-    print_term(o->argv[1]);
     printf(")");
     return;
 }
@@ -528,26 +505,6 @@ imaginary(Term *t)
     argv[0] = t;
 
     return operator("imaginary", 1, argv);
-}
-
-Term *
-additive_inverse(Term *t)
-{
-    Term **argv = (Term **) malloc(sizeof(Term *));
-
-    argv[0] = t;
-
-    return operator("additive_inverse", 1, argv);
-}
-
-Term *
-multiple_inverse(Term *t)
-{
-    Term **argv = (Term **) malloc(sizeof(Term *));
-
-    argv[0] = t;
-
-    return operator("multiple_inverse", 1, argv);
 }
 
 Term *
@@ -591,14 +548,13 @@ add(Term *lhs, Term *rhs)
 }
 
 Term *
-subtract(Term *lhs, Term *rhs)
+additive_inverse(Term *t)
 {
-    Term **argv = (Term **) malloc(sizeof(Term *) * 2);
+    Term **argv = (Term **) malloc(sizeof(Term *));
 
-    argv[0] = lhs;
-    argv[1] = additive_inverse(rhs);
+    argv[0] = t;
 
-    return operator("+", 2, argv);
+    return operator("additive_inverse", 1, argv);
 }
 
 Term *
@@ -642,14 +598,13 @@ multiply(Term *lhs, Term *rhs)
 }
 
 Term *
-divide(Term *lhs, Term *rhs)
+multiple_inverse(Term *t)
 {
-    Term **argv = (Term **) malloc(sizeof(Term *) * 2);
+    Term **argv = (Term **) malloc(sizeof(Term *));
 
-    argv[0] = lhs;
-    argv[1] = multiple_inverse(rhs);
+    argv[0] = t;
 
-    return operator("*", 2, argv);
+    return operator("multiple_inverse", 1, argv);
 }
 
 Term *
@@ -675,49 +630,62 @@ simplify(Term *t)
 
     Term *simple = t;
 
+    simple = simplify_double_imaginary(simple);
     simple = simplify_double_additive_inverse(simple);
     simple = simplify_double_multiple_inverse(simple);
-    simple = simplify_double_imaginary(simple);
 
+    simple = swap_additive_inverse_imaginary(simple);
+
+    simple = simplify_additive_inverse_zero(simple);
+    simple = simplify_imaginary_zero(simple);
+
+    simple = add_literals(simple);
+    simple = add_imaginary_literals(simple);
+    simple = simplify_additive_inverse_add(simple);
+    simple = simplify_imaginary_add(simple);
+    simple = simplify_added_zero(simple);
+    simple = simplify_combine_added_neutral_terms(simple);
     simple = simplify_additive_assoziativity(simple);
-    simple = simplify_multiple_assoziativity(simple);
+    simple = simplify_order_added_terms(simple);
 
+    simple = multiply_literals(simple);
+    simple = simplify_multiple_assoziativity(simple);
     simple = simplify_multiple_additive_inverse(simple);
     simple = simplify_multiple_imaginary(simple);
     simple = simplify_multiple_inverse_imaginary(simple);
     simple = simplify_multiple_inverse_additive_inverse(simple);
-
-    simple = swap_additive_inverse_imaginary(simple);
-
-    simple = simplify_additive_inverse_add(simple);
-    simple = simplify_imaginary_add(simple);
-
-    simple = simplify_order_added_terms(simple);
-    simple = simplify_order_multiplied_terms(simple);
-
+    simple = simplify_multiplied_one(simple);
+    simple = simplify_multiplied_zero(simple);
+    simple = simplify_multiple_inverse_one(simple);
     simple = simplify_combine_multiplied_multiple_inverse(simple);
-    simple = simplify_combine_added_neutral_terms(simple);
     simple = simplify_combine_multiplied_neutral_terms(simple);
+    simple = simplify_order_multiplied_terms(simple);
 
     simple = simplify_with_distributive_law(simple);
     simple = simplify_recursive_multiple_inverse(simple);
     simple = simplify_combine_additive_variable_terms(simple);
 
-    simple = simplify_imaginary_zero(simple);
-    simple = simplify_additive_inverse_zero(simple);
-
-    simple = simplify_added_zero(simple);
-    simple = simplify_multiplied_one(simple);
-    simple = simplify_multiplied_zero(simple);
-    simple = simplify_multiple_inverse_one(simple);
-
-    simple = add_literals(simple);
-    simple = add_imaginary_literals(simple);
-    simple = multiply_literals(simple);
-
-//    simple = simplify_partial_fraction_expansion(simple);
+    simple = simplify_partial_fraction_expansion(simple);
 
     return simple;
+}
+
+Term *
+simplify_double_imaginary(Term *t)
+{
+    Operator *o = is_operator(t, "imaginary");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "imaginary");
+    if (o_1 == NULL)
+        return t;
+
+    Term *simple = additive_inverse(copy_term(o_1->argv[0]));
+
+    free_term(t);
+
+    return simplify(simple);
 }
 
 Term *
@@ -756,174 +724,6 @@ simplify_double_multiple_inverse(Term *t)
     return simplify(simple);
 }
 
-Term *
-simplify_double_imaginary(Term *t)
-{
-    Operator *o = is_operator(t, "imaginary");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "imaginary");
-    if (o_1 == NULL)
-        return t;
-
-    Term *simple = additive_inverse(copy_term(o_1->argv[0]));
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_additive_assoziativity(Term *t)
-{
-    Operator *o = is_operator(t, "+");
-    if (o == NULL)
-        return t;
-
-    int i;
-    for(i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "+");
-        if (o_1 == NULL)
-            continue;
-
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term *simple = add(copy_term(o->argv[0]), copy_term(o->argv[1]));
-
-    for (int i = 2;i < o->argc;i++)
-        simple = add(simple, copy_term(o->argv[i]));
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_multiple_assoziativity(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    for(i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "*");
-        if (o_1 == NULL)
-            continue;
-
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term *simple = multiply(copy_term(o->argv[0]), copy_term(o->argv[1]));
-
-    for (int i = 2;i < o->argc;i++)
-        simple = multiply(simple, copy_term(o->argv[i]));
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_multiple_additive_inverse(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    Term *replacement;
-
-    for(i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "additive_inverse");
-        if (o_1 == NULL)
-            continue;
-
-        replacement = copy_term(o_1->argv[0]);
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    free_term(o->argv[i]);
-    o->argv[i] = replacement;
-
-    return simplify(additive_inverse(t));
-}
-
-Term *
-simplify_multiple_imaginary(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    Term *replacement;
-
-    for(i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "imaginary");
-        if (o_1 == NULL)
-            continue;
-
-        replacement = copy_term(o_1->argv[0]);
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    free_term(o->argv[i]);
-    o->argv[i] = replacement;
-
-    return simplify(imaginary(t));
-}
-
-Term *
-simplify_multiple_inverse_imaginary(Term *t)
-{
-    Operator *o = is_operator(t, "multiple_inverse");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "imaginary");
-    if (o_1 == NULL)
-        return t;
-
-    Term *simple = imaginary(additive_inverse(multiple_inverse(copy_term(o_1->argv[0]))));
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_multiple_inverse_additive_inverse(Term *t)
-{
-    Operator *o = is_operator(t, "multiple_inverse");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "additive_inverse");
-    if (o_1 == NULL)
-        return t;
-
-    Term *simple = additive_inverse(multiple_inverse(copy_term(o_1->argv[0])));
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
 Term *swap_additive_inverse_imaginary(Term *t)
 {
     Operator *o = is_operator(t, "additive_inverse");
@@ -939,407 +739,6 @@ Term *swap_additive_inverse_imaginary(Term *t)
     free_term(t);
 
     return simplify(simple);
-}
-
-Term *simplify_additive_inverse_add(Term *t)
-{
-    Operator *o = is_operator(t, "additive_inverse");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "+");
-    if (o_1 == NULL)
-        return t;
-
-    for (int i = 0;i < o_1->argc;i++)
-        o_1->argv[i] = additive_inverse(o_1->argv[i]);
-
-    Term *simple = copy_term(o->argv[0]);
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *simplify_imaginary_add(Term *t)
-{
-    Operator *o = is_operator(t, "imaginary");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "+");
-    if (o_1 == NULL)
-        return t;
-
-    for (int i = 0;i < o_1->argc;i++)
-        o_1->argv[i] = imaginary(o_1->argv[i]);
-
-    Term *simple = copy_term(o->argv[0]);
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *simplify_order_added_terms(Term *t)
-{
-    Operator *o = is_operator(t, "+");
-    if (o == NULL)
-        return t;
-
-    merge_sort_added_terms(o->argv, 0, o->argc - 1);
-
-    return t;
-}
-
-Term *simplify_order_multiplied_terms(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    merge_sort_multiplied_terms(o->argv, 0, o->argc - 1);
-
-    return t;
-}
-
-Term *
-simplify_combine_multiplied_multiple_inverse(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i, j, k;
-    Term *t_1;
-
-    for (i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
-        if (o_1 == NULL)
-            continue;
-
-        t_1 = o_1->argv[0];
-        j = i;
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term *t_2;
-
-    for (i++;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
-        if (o_1 == NULL)
-            continue;
-
-        t_2 = o_1->argv[0];
-        k = i;
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term *simple = multiple_inverse(multiply(copy_term(t_1), copy_term(t_2)));
-
-    for (i = 0;i < o->argc;i++) {
-        if (i == j || i == k)
-            continue;
-
-        simple = multiply(simple, copy_term(o->argv[i]));
-    }
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_combine_multiplied_neutral_terms(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    bool can_be_simplified = false;
-
-    for (int i = 0;i < o->argc;i++) {
-        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
-        if (o_1 == NULL)
-            continue;
-        
-        Operator *o_2 = is_operator(o_1->argv[0], "*");
-        if (o_2 == NULL) {
-            for (int k = 0;k < o->argc;k++) {
-                if (is_equal(o->argv[k], o_1->argv[0])) {
-                    can_be_simplified = true;
-                    free_term(o->argv[k]);
-                    free_term(o_1->argv[0]);
-                    o->argv[k] = literal(1.0);
-                    o_1->argv[0] = literal(1.0);
-                    break;
-                }
-            }
-        } else {
-            for (int j = 0;j < o_2->argc;j++) {
-                int k = 0;
-                for (;k < o->argc;k++) {
-                    if (is_equal(o->argv[k], o_2->argv[0])) {
-                        can_be_simplified = true;
-                        free_term(o->argv[k]);
-                        free_term(o_2->argv[0]);
-                        o->argv[k] = literal(1.0);
-                        o_2->argv[0] = literal(1.0);
-                        break;
-                    }
-                }
-            }
-        }
-
-        o->argv[i] = simplify(o->argv[i]);
-    }
-
-    if (!can_be_simplified)
-        return t;
-    else
-        return simplify(t);
-}
-
-Term *
-simplify_combine_added_neutral_terms(Term *t)
-{
-    Operator *o = is_operator(t, "+");
-    if (o == NULL)
-        return t;
-
-    int i, j;
-
-    Operator *o_1;
-    Term *t_1;
-
-    for (i = 0;i < o->argc;i++) {
-        for (;i < o->argc;i++) {
-            o_1 = is_operator(o->argv[i], "additive_inverse");
-            if (o_1 == NULL)
-                continue;
-
-            t_1 = o_1->argv[0];
-            break;
-        }
-        if (i >= o->argc)
-            continue;
-
-        for (j = 0;j < o->argc;j++) {
-            if (is_equal(o->argv[j], t_1))
-                break;
-        }
-        if (j >= o->argc)
-            continue;
-
-        free_term(o->argv[j]);
-        free_term(o->argv[i]);
-        o->argv[j] = literal(0.0);
-        o->argv[i] = literal(0.0);
-    }
-    if(i >= o->argc)
-        return t;
-
-    return simplify(t);
-}
-
-Term *
-simplify_with_distributive_law(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    Operator *temp_o;
-
-    for (i = 0;i < o->argc;i++) {
-        temp_o = is_operator(o->argv[i], "+");
-        if (temp_o == NULL)
-            continue;
-
-        if (!is_variable_term(t))
-            break;
-
-        if (is_variable_term(o->argv[i]))
-            break;
-        else
-            continue;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term **part = (Term **) malloc(sizeof(Term*) * temp_o->argc);
-
-    for (int j = 0;j < temp_o->argc;j++)
-        part[j] = copy_term(temp_o->argv[j]);
-
-    for (int j = 0;j < temp_o->argc;j++) {
-        for (int k = 0;k < o->argc;k++) {
-            if (i == k)
-                continue;
-
-            part[j] = multiply(part[j], copy_term(o->argv[k]));
-        }
-    }
-
-    Term *simple = operator("+", temp_o->argc, part);
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_recursive_multiple_inverse(Term *t)
-{
-    Operator *o = is_operator(t, "multiple_inverse");
-    if (o == NULL)
-        return t;
-
-    Operator *o_1 = is_operator(o->argv[0], "+");
-    if (o_1 == NULL)
-        return t;
-
-    Term *t_inv;
-    int i;
-    for (i = 0;i < o_1->argc;i++) {
-
-        t_inv = o_1->argv[i];
-
-        Operator *o_2 = is_operator(t_inv, "imaginary");
-        if (o_2 != NULL)
-            t_inv = o_2->argv[0];
-
-        Operator *o_3 = is_operator(t_inv, "additive_inverse");
-        if (o_3 != NULL)
-            t_inv = o_3->argv[0];
-
-        t_inv = has_multiple_inverse(t_inv);
-        if (t_inv == NULL)
-            continue;
-
-        break;
-    }
-
-    if (i >= o_1->argc)
-        return t;
-
-    for(int i = 0;i < o_1->argc;i++)
-        o_1->argv[i] = simplify(multiply(copy_term(o_1->argv[i]), copy_term(t_inv)));
-
-    return simplify(multiply(copy_term(t_inv), t));
-}
-
-Term *
-has_multiple_inverse(Term *t)
-{
-    Operator *o = is_operator(t, "multiple_inverse");
-    if (o != NULL)
-        return o->argv[0];
-
-    o = is_operator(t, "*");
-    if (o != NULL)
-    {
-        Term *t_inv;
-        int i;
-
-        for (i = 0;i < o->argc;i++) {
-            Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
-            if (o_1 == NULL)
-                continue;
-
-            t_inv = o_1->argv[0];
-            break;
-        }
-
-        if (i >= o->argc)
-            return NULL;
-
-        return t_inv;
-    }
-
-    return NULL;
-}
-
-Term *
-simplify_combine_additive_variable_terms(Term *t)
-{
-    Operator *o = is_operator(t, "+");
-    if (o == NULL)
-        return t;
-
-    int i, j;
-
-    Term *non_variable, *variable;
-    Term *current_non_variable, *current_variable;
-
-    for (i = 0;i < o->argc;i++) {
-        non_variable = get_non_variable_terms_from_multiple(o->argv[i]);
-        variable = get_variable_terms_from_multiple(o->argv[i]);
-
-        for(j = i + 1;j < o->argc;j++) {
-            current_non_variable = get_non_variable_terms_from_multiple(o->argv[j]);
-            current_variable = get_variable_terms_from_multiple(o->argv[j]);
-
-            if (is_equal(variable, current_variable) && is_variable_term(current_variable))
-                break;
-
-            free_term(current_non_variable);
-            free_term(current_variable);
-        }
-
-        if (j >= o->argc) {
-            free_term(non_variable);
-            free_term(variable);
-            continue;
-        }
-
-        free_term(current_variable);
-
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Term *simple = multiply(add(non_variable, current_non_variable), variable);
-
-    for (int k = 0;k < o->argc;k++) {
-        if(k == i || k == j)
-            continue;
-
-        simple = add(simple, copy_term(o->argv[k]));
-    }
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_imaginary_zero(Term * t)
-{
-    Operator *o = is_operator(t, "imaginary");
-    if (o == NULL)
-        return t;
-
-    if (strcmp(o->argv[0]->meaning, "literal") != 0)
-        return t;
-
-    Literal *l = o->argv[0]->content;
-    if (l->value != 0.0);
-        return t;
-
-    free_term(t);
-
-    return literal(0.0);
 }
 
 Term *
@@ -1362,122 +761,9 @@ simplify_additive_inverse_zero(Term *t)
 }
 
 Term *
-simplify_added_zero(Term *t)
+simplify_imaginary_zero(Term * t)
 {
-    Operator *o = is_operator(t, "+");
-    if (o == NULL)
-        return t;
-
-    int i;
-    for (i = 0;i < o->argc;i++) {
-        if (strcmp(o->argv[i]->meaning, "literal") == 0)
-            break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Literal *l = o->argv[i]->content;
-    if (l->value != 0.0)
-        return t;
-
-    Term *simple;
-    int j;
-
-    if (i == 0) {
-        simple = copy_term(o->argv[1]);
-        j = 1;
-    } else {
-        simple = copy_term(o->argv[0]);
-        j = 0;
-    }
-
-    for (int k = 0;k < o->argc;k++) {
-        if (i == k || j == k)
-            continue;
-
-        simple = add(simple, copy_term(o->argv[k]));
-    }
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_multiplied_one(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    for (i = 0;i < o->argc;i++) {
-        if (strcmp(o->argv[i]->meaning, "literal") == 0)
-            break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Literal *l = o->argv[i]->content;
-
-    if (l->value != 1.0)
-        return t;
-
-    Term *simple;
-
-    int j;
-    if (i == 0) {
-        simple = copy_term(o->argv[1]);
-        j = 1;
-    } else {
-        simple = copy_term(o->argv[0]);
-        j = 0;
-    }
-
-    for (int k = 0;k < o->argc;k++) {
-        if (i == k || j == k)
-            continue;
-
-        simple = multiply(simple, copy_term(o->argv[k]));
-    }
-
-    free_term(t);
-
-    return simplify(simple);
-}
-
-Term *
-simplify_multiplied_zero(Term *t)
-{
-    Operator *o = is_operator(t, "*");
-    if (o == NULL)
-        return t;
-
-    int i;
-    for (i = 0;i < o->argc;i++) {
-        if (strcmp(o->argv[i]->meaning, "literal") != 0)
-            continue;
-
-        Literal *l = o->argv[i]->content;
-        if (l->value != 0.0)
-            continue;
-
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    free_term(t);
-    return literal(0.0);
-}
-
-Term *
-simplify_multiple_inverse_one(Term *t)
-{
-    Operator *o = is_operator(t, "multiple_inverse");
+    Operator *o = is_operator(t, "imaginary");
     if (o == NULL)
         return t;
 
@@ -1485,12 +771,12 @@ simplify_multiple_inverse_one(Term *t)
         return t;
 
     Literal *l = o->argv[0]->content;
-    if (l->value != 1.0)
+    if (l->value != 0.0);
         return t;
 
     free_term(t);
 
-    return literal(1.0);
+    return literal(0.0);
 }
 
 Term *
@@ -1673,6 +959,171 @@ add_imaginary_literals(Term *t)
     return simplify(simple);
 }
 
+Term *simplify_additive_inverse_add(Term *t)
+{
+    Operator *o = is_operator(t, "additive_inverse");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "+");
+    if (o_1 == NULL)
+        return t;
+
+    for (int i = 0;i < o_1->argc;i++)
+        o_1->argv[i] = additive_inverse(o_1->argv[i]);
+
+    Term *simple = copy_term(o->argv[0]);
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *simplify_imaginary_add(Term *t)
+{
+    Operator *o = is_operator(t, "imaginary");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "+");
+    if (o_1 == NULL)
+        return t;
+
+    for (int i = 0;i < o_1->argc;i++)
+        o_1->argv[i] = imaginary(o_1->argv[i]);
+
+    Term *simple = copy_term(o->argv[0]);
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_added_zero(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    int i;
+    for (i = 0;i < o->argc;i++) {
+        if (strcmp(o->argv[i]->meaning, "literal") == 0)
+            break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Literal *l = o->argv[i]->content;
+    if (l->value != 0.0)
+        return t;
+
+    Term *simple;
+    int j;
+
+    if (i == 0) {
+        simple = copy_term(o->argv[1]);
+        j = 1;
+    } else {
+        simple = copy_term(o->argv[0]);
+        j = 0;
+    }
+
+    for (int k = 0;k < o->argc;k++) {
+        if (i == k || j == k)
+            continue;
+
+        simple = add(simple, copy_term(o->argv[k]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_combine_added_neutral_terms(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    int i, j;
+
+    Operator *o_1;
+    Term *t_1;
+
+    for (i = 0;i < o->argc;i++) {
+        for (;i < o->argc;i++) {
+            o_1 = is_operator(o->argv[i], "additive_inverse");
+            if (o_1 == NULL)
+                continue;
+
+            t_1 = o_1->argv[0];
+            break;
+        }
+        if (i >= o->argc)
+            continue;
+
+        for (j = 0;j < o->argc;j++) {
+            if (is_equal(o->argv[j], t_1))
+                break;
+        }
+        if (j >= o->argc)
+            continue;
+
+        free_term(o->argv[j]);
+        free_term(o->argv[i]);
+        o->argv[j] = literal(0.0);
+        o->argv[i] = literal(0.0);
+    }
+    if(i >= o->argc)
+        return t;
+
+    return simplify(t);
+}
+
+Term *
+simplify_additive_assoziativity(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    int i;
+    for(i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "+");
+        if (o_1 == NULL)
+            continue;
+
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term *simple = add(copy_term(o->argv[0]), copy_term(o->argv[1]));
+
+    for (int i = 2;i < o->argc;i++)
+        simple = add(simple, copy_term(o->argv[i]));
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *simplify_order_added_terms(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    merge_sort_added_terms(o->argv, 0, o->argc - 1);
+
+    return t;
+}
+
 Term *
 multiply_literals(Term *t)
 {
@@ -1723,9 +1174,508 @@ multiply_literals(Term *t)
 }
 
 Term *
+simplify_multiple_assoziativity(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    for(i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "*");
+        if (o_1 == NULL)
+            continue;
+
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term *simple = multiply(copy_term(o->argv[0]), copy_term(o->argv[1]));
+
+    for (int i = 2;i < o->argc;i++)
+        simple = multiply(simple, copy_term(o->argv[i]));
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_multiple_additive_inverse(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    Term *replacement;
+
+    for(i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "additive_inverse");
+        if (o_1 == NULL)
+            continue;
+
+        replacement = copy_term(o_1->argv[0]);
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    free_term(o->argv[i]);
+    o->argv[i] = replacement;
+
+    return simplify(additive_inverse(t));
+}
+
+Term *
+simplify_multiple_imaginary(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    Term *replacement;
+
+    for(i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "imaginary");
+        if (o_1 == NULL)
+            continue;
+
+        replacement = copy_term(o_1->argv[0]);
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    free_term(o->argv[i]);
+    o->argv[i] = replacement;
+
+    return simplify(imaginary(t));
+}
+
+Term *
+simplify_multiple_inverse_imaginary(Term *t)
+{
+    Operator *o = is_operator(t, "multiple_inverse");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "imaginary");
+    if (o_1 == NULL)
+        return t;
+
+    Term *simple = imaginary(additive_inverse(multiple_inverse(copy_term(o_1->argv[0]))));
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_multiple_inverse_additive_inverse(Term *t)
+{
+    Operator *o = is_operator(t, "multiple_inverse");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "additive_inverse");
+    if (o_1 == NULL)
+        return t;
+
+    Term *simple = additive_inverse(multiple_inverse(copy_term(o_1->argv[0])));
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_multiplied_one(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    for (i = 0;i < o->argc;i++) {
+        if (strcmp(o->argv[i]->meaning, "literal") == 0)
+            break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Literal *l = o->argv[i]->content;
+
+    if (l->value != 1.0)
+        return t;
+
+    Term *simple;
+
+    int j;
+    if (i == 0) {
+        simple = copy_term(o->argv[1]);
+        j = 1;
+    } else {
+        simple = copy_term(o->argv[0]);
+        j = 0;
+    }
+
+    for (int k = 0;k < o->argc;k++) {
+        if (i == k || j == k)
+            continue;
+
+        simple = multiply(simple, copy_term(o->argv[k]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_multiplied_zero(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    for (i = 0;i < o->argc;i++) {
+        if (strcmp(o->argv[i]->meaning, "literal") != 0)
+            continue;
+
+        Literal *l = o->argv[i]->content;
+        if (l->value != 0.0)
+            continue;
+
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    free_term(t);
+    return literal(0.0);
+}
+
+Term *
+simplify_multiple_inverse_one(Term *t)
+{
+    Operator *o = is_operator(t, "multiple_inverse");
+    if (o == NULL)
+        return t;
+
+    if (strcmp(o->argv[0]->meaning, "literal") != 0)
+        return t;
+
+    Literal *l = o->argv[0]->content;
+    if (l->value != 1.0)
+        return t;
+
+    free_term(t);
+
+    return literal(1.0);
+}
+
+Term *
+simplify_combine_multiplied_multiple_inverse(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i, j, k;
+    Term *t_1;
+
+    for (i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
+        if (o_1 == NULL)
+            continue;
+
+        t_1 = o_1->argv[0];
+        j = i;
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term *t_2;
+
+    for (i++;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
+        if (o_1 == NULL)
+            continue;
+
+        t_2 = o_1->argv[0];
+        k = i;
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term *simple = multiple_inverse(multiply(copy_term(t_1), copy_term(t_2)));
+
+    for (i = 0;i < o->argc;i++) {
+        if (i == j || i == k)
+            continue;
+
+        simple = multiply(simple, copy_term(o->argv[i]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_combine_multiplied_neutral_terms(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    bool can_be_simplified = false;
+
+    for (int i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
+        if (o_1 == NULL)
+            continue;
+        
+        Operator *o_2 = is_operator(o_1->argv[0], "*");
+        if (o_2 == NULL) {
+            for (int k = 0;k < o->argc;k++) {
+                if (is_equal(o->argv[k], o_1->argv[0])) {
+                    can_be_simplified = true;
+                    free_term(o->argv[k]);
+                    free_term(o_1->argv[0]);
+                    o->argv[k] = literal(1.0);
+                    o_1->argv[0] = literal(1.0);
+                    break;
+                }
+            }
+        } else {
+            for (int j = 0;j < o_2->argc;j++) {
+                int k = 0;
+                for (;k < o->argc;k++) {
+                    if (is_equal(o->argv[k], o_2->argv[0])) {
+                        can_be_simplified = true;
+                        free_term(o->argv[k]);
+                        free_term(o_2->argv[0]);
+                        o->argv[k] = literal(1.0);
+                        o_2->argv[0] = literal(1.0);
+                        break;
+                    }
+                }
+            }
+        }
+
+        o->argv[i] = simplify(o->argv[i]);
+    }
+
+    if (!can_be_simplified)
+        return t;
+    else
+        return simplify(t);
+}
+
+Term *simplify_order_multiplied_terms(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    merge_sort_multiplied_terms(o->argv, 0, o->argc - 1);
+
+    return t;
+}
+
+Term *
+simplify_with_distributive_law(Term *t)
+{
+    Operator *o = is_operator(t, "*");
+    if (o == NULL)
+        return t;
+
+    int i;
+    Operator *temp_o;
+
+    for (i = 0;i < o->argc;i++) {
+        temp_o = is_operator(o->argv[i], "+");
+        if (temp_o == NULL)
+            continue;
+
+        if (!is_variable_term(t))
+            break;
+
+        if (is_variable_term(o->argv[i]))
+            break;
+        else
+            continue;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term **part = (Term **) malloc(sizeof(Term*) * temp_o->argc);
+
+    for (int j = 0;j < temp_o->argc;j++)
+        part[j] = copy_term(temp_o->argv[j]);
+
+    for (int j = 0;j < temp_o->argc;j++) {
+        for (int k = 0;k < o->argc;k++) {
+            if (i == k)
+                continue;
+
+            part[j] = multiply(part[j], copy_term(o->argv[k]));
+        }
+    }
+
+    Term *simple = operator("+", temp_o->argc, part);
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
+simplify_recursive_multiple_inverse(Term *t)
+{
+    Operator *o = is_operator(t, "multiple_inverse");
+    if (o == NULL)
+        return t;
+
+    Operator *o_1 = is_operator(o->argv[0], "+");
+    if (o_1 == NULL)
+        return t;
+
+    Term *t_inv;
+    int i;
+    for (i = 0;i < o_1->argc;i++) {
+
+        t_inv = o_1->argv[i];
+
+        Operator *o_2 = is_operator(t_inv, "imaginary");
+        if (o_2 != NULL)
+            t_inv = o_2->argv[0];
+
+        Operator *o_3 = is_operator(t_inv, "additive_inverse");
+        if (o_3 != NULL)
+            t_inv = o_3->argv[0];
+
+        t_inv = has_multiple_inverse(t_inv);
+        if (t_inv == NULL)
+            continue;
+
+        break;
+    }
+
+    if (i >= o_1->argc)
+        return t;
+
+    for(int i = 0;i < o_1->argc;i++)
+        o_1->argv[i] = simplify(multiply(copy_term(o_1->argv[i]), copy_term(t_inv)));
+
+    return simplify(multiply(copy_term(t_inv), t));
+}
+
+Term *
+simplify_combine_additive_variable_terms(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    int i, j;
+
+    Term *non_variable, *variable;
+    Term *current_non_variable, *current_variable;
+
+    for (i = 0;i < o->argc;i++) {
+        non_variable = get_non_variable_terms_from_multiple(o->argv[i]);
+        variable = get_variable_terms_from_multiple(o->argv[i]);
+
+        for(j = i + 1;j < o->argc;j++) {
+            current_non_variable = get_non_variable_terms_from_multiple(o->argv[j]);
+            current_variable = get_variable_terms_from_multiple(o->argv[j]);
+
+            if (is_equal(variable, current_variable) && is_variable_term(current_variable))
+                break;
+
+            free_term(current_non_variable);
+            free_term(current_variable);
+        }
+
+        if (j >= o->argc) {
+            free_term(non_variable);
+            free_term(variable);
+            continue;
+        }
+
+        free_term(current_variable);
+
+        break;
+    }
+
+    if (i >= o->argc)
+        return t;
+
+    Term *simple = multiply(add(non_variable, current_non_variable), variable);
+
+    for (int k = 0;k < o->argc;k++) {
+        if(k == i || k == j)
+            continue;
+
+        simple = add(simple, copy_term(o->argv[k]));
+    }
+
+    free_term(t);
+
+    return simplify(simple);
+}
+
+Term *
 simplify_partial_fraction_expansion(Term *t)
 {
     return t;
+}
+
+Term *
+has_multiple_inverse(Term *t)
+{
+    Operator *o = is_operator(t, "multiple_inverse");
+    if (o != NULL)
+        return o->argv[0];
+
+    o = is_operator(t, "*");
+    if (o != NULL)
+    {
+        Term *t_inv;
+        int i;
+
+        for (i = 0;i < o->argc;i++) {
+            Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
+            if (o_1 == NULL)
+                continue;
+
+            t_inv = o_1->argv[0];
+            break;
+        }
+
+        if (i >= o->argc)
+            return NULL;
+
+        return t_inv;
+    }
+
+    return NULL;
 }
 
 int main()
