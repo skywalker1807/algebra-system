@@ -108,6 +108,7 @@ static Term *simplify_order_added_terms(Term *t);
 static Term *simplify_order_multiplied_terms(Term *t);
 static Term *simplify_combine_multiplied_multiple_inverse(Term *t);
 static Term *simplify_combine_multiplied_neutral_terms(Term *t);
+static Term *simplify_combine_added_neutral_terms(Term *t);
 static Term *simplify_with_distributive_law(Term *t);
 static Term *simplify_recursive_multiple_inverse(Term *t);
 static Term *simplify_combine_additive_variable_terms(Term *t);
@@ -120,6 +121,15 @@ static Term *simplify_multiple_inverse_one(Term *t);
 static Term *add_literals(Term *t);
 static Term *add_imaginary_literals(Term *t);
 static Term *multiply_literals(Term *t);
+
+static Term *simplify_partial_fraction_expansion(Term *t);
+
+/*
+static bool is_polinomial(Term *t);
+static Term *split_polinomial(Term *t);
+static int max_polinomial(Term *t);
+static Term **get_placeholder_terms(Term *t, Term *t);
+*/
 
 static Term *has_multiple_inverse(Term *t);
 
@@ -660,7 +670,6 @@ simplify(Term *t)
         return t;
 
     Operator *o = t->content;
-
     for(int i = 0;i < o->argc;i++)
         o->argv[i] = simplify(o->argv[i]);
 
@@ -687,6 +696,7 @@ simplify(Term *t)
     simple = simplify_order_multiplied_terms(simple);
 
     simple = simplify_combine_multiplied_multiple_inverse(simple);
+    simple = simplify_combine_added_neutral_terms(simple);
     simple = simplify_combine_multiplied_neutral_terms(simple);
 
     simple = simplify_with_distributive_law(simple);
@@ -704,6 +714,8 @@ simplify(Term *t)
     simple = add_literals(simple);
     simple = add_imaginary_literals(simple);
     simple = multiply_literals(simple);
+
+//    simple = simplify_partial_fraction_expansion(simple);
 
     return simple;
 }
@@ -1050,55 +1062,88 @@ simplify_combine_multiplied_neutral_terms(Term *t)
     if (o == NULL)
         return t;
 
-    int i;
+    bool can_be_simplified = false;
+
+    for (int i = 0;i < o->argc;i++) {
+        Operator *o_1 = is_operator(o->argv[i], "multiple_inverse");
+        if (o_1 == NULL)
+            continue;
+        
+        Operator *o_2 = is_operator(o_1->argv[0], "*");
+        if (o_2 == NULL) {
+            for (int k = 0;k < o->argc;k++) {
+                if (is_equal(o->argv[k], o_1->argv[0])) {
+                    can_be_simplified = true;
+                    free_term(o->argv[k]);
+                    free_term(o_1->argv[0]);
+                    o->argv[k] = literal(1.0);
+                    o_1->argv[0] = literal(1.0);
+                    break;
+                }
+            }
+        } else {
+            for (int j = 0;j < o_2->argc;j++) {
+                int k = 0;
+                for (;k < o->argc;k++) {
+                    if (is_equal(o->argv[k], o_2->argv[0])) {
+                        can_be_simplified = true;
+                        free_term(o->argv[k]);
+                        free_term(o_2->argv[0]);
+                        o->argv[k] = literal(1.0);
+                        o_2->argv[0] = literal(1.0);
+                        break;
+                    }
+                }
+            }
+        }
+
+        o->argv[i] = simplify(o->argv[i]);
+    }
+
+    if (!can_be_simplified)
+        return t;
+    else
+        return simplify(t);
+}
+
+Term *
+simplify_combine_added_neutral_terms(Term *t)
+{
+    Operator *o = is_operator(t, "+");
+    if (o == NULL)
+        return t;
+
+    int i, j;
 
     Operator *o_1;
     Term *t_1;
 
     for (i = 0;i < o->argc;i++) {
-        o_1 = is_operator(o->argv[i], "multiple_inverse");
-        if (o_1 == NULL)
-            continue;
-
-        t_1 = o_1->argv[0];
-        break;
-    }
-
-    if (i >= o->argc)
-        return t;
-
-    Operator *o_temp = is_operator(t_1, "*");
-
-    if (o_temp == NULL) {
-        int i;
-        for (i = 0;i < o->argc;i++) {
-            if (is_equal(o->argv[i], t_1))
-                break;
-        }
-
-        if (i >= o->argc)
-            return t;
-
-        free_term(o->argv[i]);
-        free_term(o_1->argv[0]);
-        o->argv[i] = literal(1.0);
-        o_1->argv[0] = literal(1.0);
-    } else {
-        for (int j = 0;j < o_temp->argc;j++) {
-            int i;
-            for (i = 0;i < o->argc;i++) {
-                if (is_equal(o->argv[i], o_temp->argv[j]))
-                    break;
-            }
-            if (i >= o->argc)
+        for (;i < o->argc;i++) {
+            o_1 = is_operator(o->argv[i], "additive_inverse");
+            if (o_1 == NULL)
                 continue;
 
-            free_term(o->argv[i]);
-            free_term(o_temp->argv[j]);
-            o->argv[i] = literal(1.0);
-            o_temp->argv[j] = literal(1.0);
+            t_1 = o_1->argv[0];
+            break;
         }
+        if (i >= o->argc)
+            continue;
+
+        for (j = 0;j < o->argc;j++) {
+            if (is_equal(o->argv[j], t_1))
+                break;
+        }
+        if (j >= o->argc)
+            continue;
+
+        free_term(o->argv[j]);
+        free_term(o->argv[i]);
+        o->argv[j] = literal(0.0);
+        o->argv[i] = literal(0.0);
     }
+    if(i >= o->argc)
+        return t;
 
     return simplify(t);
 }
@@ -1118,7 +1163,13 @@ simplify_with_distributive_law(Term *t)
         if (temp_o == NULL)
             continue;
 
-        break;
+        if (!is_variable_term(t))
+            break;
+
+        if (is_variable_term(o->argv[i]))
+            break;
+        else
+            continue;
     }
 
     if (i >= o->argc)
@@ -1180,7 +1231,8 @@ simplify_recursive_multiple_inverse(Term *t)
     if (i >= o_1->argc)
         return t;
 
-    o->argv[0] = multiply(copy_term(t_inv), copy_term(o->argv[0]));
+    for(int i = 0;i < o_1->argc;i++)
+        o_1->argv[i] = simplify(multiply(copy_term(o_1->argv[i]), copy_term(t_inv)));
 
     return simplify(multiply(copy_term(t_inv), t));
 }
@@ -1670,10 +1722,16 @@ multiply_literals(Term *t)
     return simplify(simple);
 }
 
+Term *
+simplify_partial_fraction_expansion(Term *t)
+{
+    return t;
+}
+
 int main()
 {
 // functions:
-// c ... merge(term)
+// c ... simplify_partial_fraction_expansion(term)
 
 // x ... simplify(term)
 // o ... solve(term) // for differential equations
