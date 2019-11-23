@@ -5,4 +5,5 @@ For now it is a term based CAS to simplify a given formula.
 
 ## TODO
 + `function` simplify
-+ `function` simplify_partial_fraction_expansion
++ `function` simplify_power
++ `function` solve_differential
