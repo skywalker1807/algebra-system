@@ -51,34 +51,34 @@ Constant *construct_constant(char *name, double upper_limit, double lower_limit)
 Variable *construct_variable(char *name, int indec, Term **index);
 Operator *construct_operator(char *name, int argc, Term **argv);
 
-void free_term(Term *t);
-void free_variable(Variable *v);
-void free_literal(Literal *l);
-void free_constant(Constant *c);
-void free_operator(Operator *o);
+void free_term(Term *term);
+void free_variable(Variable *variable);
+void free_literal(Literal *literal);
+void free_constant(Constant *contant);
+void free_operator(Operator *operator);
 
-Term *copy_term(Term *t);
-Literal *copy_literal(Literal *l);
-Constant *copy_constant(Constant *c);
-Variable *copy_variable(Variable *v);
-Operator *copy_operator(Operator *o);
+Term *copy_term(Term *term);
+Literal *copy_literal(Literal *literal);
+Constant *copy_constant(Constant *constant);
+Variable *copy_variable(Variable *variable);
+Operator *copy_operator(Operator *operator);
 
-void print_term(Term *t);
-void print_literal(Literal *l);
-void print_constant(Constant *c);
-void print_variable(Variable *v);
-void print_operator(Operator *o);
+void print_term(Term *term);
+void print_literal(Literal *literal);
+void print_constant(Constant *constant);
+void print_variable(Variable *variable);
+void print_operator(Operator *operator);
 
-void print_imaginary(Operator *o);
-void print_addition(Operator *o);
-void print_additive_inverse(Operator *o);
-void print_multiply(Operator *o);
-void print_multiple_inverse(Operator *o);
+void print_imaginary(Operator *operator);
+void print_addition(Operator *operator);
+void print_additive_inverse(Operator *operator);
+void print_multiply(Operator *operator);
+void print_multiple_inverse(Operator *operator);
 void print_differential(Operator *operator);
 void print_integral(Operator *operator);
-void print_equals(Operator *o);
+void print_equals(Operator *operator);
 
-Operator *is_operator(Term *t, char *name);
+Operator *is_operator(Term *term, char *name);
 
 Term *imaginary(Term *term);
 Term *add(Term *lhs, Term *rhs);

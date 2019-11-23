@@ -1090,5 +1090,3 @@ inside_of_multiple_inverse(Term *term)
     return term_inverse;
 }
 
-
-
