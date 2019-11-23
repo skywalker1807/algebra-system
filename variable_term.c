@@ -75,6 +75,15 @@ get_variable_term(Term* term)
             else
                 return multiple_inverse(copy_term(temp_term));
         }
+        if (strcmp(operator->name, "^") == 0) {
+            Term *base = get_variable_term(operator->argv[0]);
+            Term *exponent = get_variable_term(operator->argv[1]);
+
+            if (is_equal(base, literal(1.0)) && is_equal(exponent, literal(1.0)))
+                return literal(1.0);
+            else
+                return copy_term(term);
+        }
     }
 
     return literal(1.0);
@@ -134,6 +143,15 @@ get_non_variable_term(Term* term)
                 return literal(1.0);
             else
                 return multiple_inverse(copy_term(temp_term));
+        }
+        if (strcmp(operator->name, "^") == 0) {
+            Term *base = get_non_variable_term(operator->argv[0]);
+            Term *exponent = get_non_variable_term(operator->argv[1]);
+
+            if (is_equal(base, literal(1.0)) && is_equal(exponent, literal(1.0)))
+                return literal(1.0);
+            else
+                return copy_term(term);
         }
     }
 

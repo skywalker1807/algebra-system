@@ -276,6 +276,8 @@ print_operator(Operator *operator)
         print_multiply(operator);
     if (strcmp(operator->name, "multiple_inverse") == 0)
         print_multiple_inverse(operator);
+    if (strcmp(operator->name, "^") == 0)
+        print_differential(operator);
     if (strcmp(operator->name, "D") == 0)
         print_differential(operator);
     if (strcmp(operator->name, "I") == 0)
@@ -341,6 +343,17 @@ print_multiple_inverse(Operator *operator)
 {
     printf("(1.0/");
     print_term(operator->argv[0]);
+    printf(")");
+    return;
+}
+
+void
+print_power(Operator *operator)
+{
+    printf("(");
+    print_term(operator->argv[0]);
+    printf(")^(");
+    print_term(operator->argv[1]);
     printf(")");
     return;
 }
@@ -513,9 +526,20 @@ multiple_inverse(Term *term)
 }
 
 Term *
+power(Term *base, Term* exponent)
+{
+    Term **argv = (Term **) malloc(sizeof(Term *) * 2);
+
+    argv[0] = base;
+    argv[1] = exponent;
+
+    return operator("^", 2, argv);
+}
+
+Term *
 differential(Term *term, Term* variable)
 {
-    Term **argv = (Term **) malloc(sizeof(Term *) + 2);
+    Term **argv = (Term **) malloc(sizeof(Term *) * 2);
 
     argv[0] = term;
     argv[1] = variable;
@@ -526,7 +550,7 @@ differential(Term *term, Term* variable)
 Term *
 integral(Term *term, Term *variable)
 {
-    Term **argv = (Term **) malloc(sizeof(Term *) + 2);
+    Term **argv = (Term **) malloc(sizeof(Term *) * 2);
 
     argv[0] = term;
     argv[1] = variable;
@@ -537,7 +561,7 @@ integral(Term *term, Term *variable)
 Term *
 definite_integral(Term *term, Term *variable, Term *upper_limit, Term *lower_limit)
 {
-    Term **argv = (Term **) malloc(sizeof(Term *) + 4);
+    Term **argv = (Term **) malloc(sizeof(Term *) * 4);
 
     argv[0] = term;
     argv[1] = variable;
